@@ -19,7 +19,7 @@
 
 char *tzitaly = "Europe/Rome";
 
-static Display *dpy;
+static Display *dpy = NULL;
 
 char *
 smprintf(char *fmt, ...)
@@ -166,12 +166,23 @@ getbattery(char *base)
 char *
 gettemperature(char *base, char *sensor)
 {
-	char *co;
+	char *co, *ret;
 
 	co = readfile(base, sensor);
 	if (co == NULL)
 		return smprintf("");
-	return smprintf("%02.0f°C", atof(co) / 1000);
+	ret = smprintf("%02.0f°C", atof(co) / 1000);
+	free(co);
+	return ret;
+}
+
+
+void
+cleanup()
+{
+	if (dpy != NULL) {
+		XCloseDisplay(dpy);
+	}
 }
 
 int
@@ -186,6 +197,8 @@ main(void)
 		fprintf(stderr, "dwmstatus: cannot open display.\n");
 		return 1;
 	}
+
+	atexit(cleanup);
 
 	for (;;sleep(2)) {
 		avgs = loadavg();
