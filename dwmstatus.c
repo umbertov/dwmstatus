@@ -191,9 +191,13 @@ cleanup()
 }
 
 
-char *get_freespace(char *mntpt){
+char *get_freespace(char *mntpt, char *briefname){
     struct statvfs data;
     double total, used = 0;
+
+    if (briefname == NULL) {
+        briefname = mntpt;
+    }
 
     if ( (statvfs(mntpt, &data)) < 0){
 		fprintf(stderr, "can't get info on disk.\n");
@@ -204,7 +208,7 @@ char *get_freespace(char *mntpt){
 
     float freespace = total - used;
 
-    return(smprintf("%.0f GiB (%.0f%%)",freespace / GiB,  (used/total*100)));
+    return(smprintf("%s %.0f GiB (%.0f%%)", briefname, freespace / GiB,  (used/total*100)));
 }
 
 int
@@ -214,7 +218,7 @@ main(void)
 	char *avgs;
 	char *time_str;
 	char *t0, *t1, *t2;
-	char *freespace_root, *freespace_home;
+	char *freespace_root, *freespace_home, *freespace_exfat;
 	char *freespace_str, *temperature_str;
 
 	if (!(dpy = XOpenDisplay(NULL))) {
@@ -231,13 +235,15 @@ main(void)
 		t1 = gettemperature("/sys/devices/platform/coretemp.0/hwmon/hwmon1", "temp2_input");
 		t2 = gettemperature("/sys/devices/platform/coretemp.0/hwmon/hwmon1", "temp3_input");
 
-        freespace_root = get_freespace("/");
-        freespace_home = get_freespace("/home");
+        freespace_root = get_freespace("/", "Root");
+        freespace_home = get_freespace("/home", "Home");
+        freespace_exfat = get_freespace("/mnt/hdd/exfat", "Exfat");
 
 		freespace_str = smprintf(
-                "Free space: / %s | /home %s",
+                "Free space: %s | %s | %s",
 				freespace_root, 
-                freespace_home
+                freespace_home,
+                freespace_exfat
         );
 
         temperature_str = smprintf("Temps:%s|%s|%s", t0, t1, t2);
