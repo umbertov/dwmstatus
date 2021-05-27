@@ -214,12 +214,12 @@ char *get_freespace(char *mntpt, char *briefname){
 int
 main(void)
 {
-	char *status;
-	char *avgs;
-	char *time_str;
-	char *t0, *t1, *t2;
-	char *freespace_root, *freespace_home, *freespace_exfat;
-	char *freespace_str, *temperature_str;
+	char *status,
+	     *avgs,
+	     *time_str,
+	     *t0, *t1, *t2,
+	     *freespace_root, *freespace_home, *freespace_exfat,
+	     *freespace_str, *temperature_str;
 
 	if (!(dpy = XOpenDisplay(NULL))) {
 		fprintf(stderr, "dwmstatus: cannot open display.\n");
@@ -229,41 +229,48 @@ main(void)
 	atexit(cleanup);
 
 	for (;;sleep(REFRESH_RATE)) {
-		avgs = loadavg();
-		time_str = mktimes("%W %a %d %b %H:%M %Y", tzitaly);
-		t0 = gettemperature("/sys/devices/platform/coretemp.0/hwmon/hwmon1", "temp1_input");
-		t1 = gettemperature("/sys/devices/platform/coretemp.0/hwmon/hwmon1", "temp2_input");
-		t2 = gettemperature("/sys/devices/platform/coretemp.0/hwmon/hwmon1", "temp3_input");
+
+        avgs = loadavg();
+        time_str = mktimes("%W %a %d %b %H:%M %Y", tzitaly);
+        t0 = gettemperature("/sys/devices/platform/coretemp.0/hwmon/hwmon1", "temp1_input");
+        t1 = gettemperature("/sys/devices/platform/coretemp.0/hwmon/hwmon1", "temp2_input");
+        t2 = gettemperature("/sys/devices/platform/coretemp.0/hwmon/hwmon1", "temp3_input");
 
         freespace_root = get_freespace("/", "Root");
         freespace_home = get_freespace("/home", "Home");
         freespace_exfat = get_freespace("/mnt/hdd/exfat", "Exfat");
 
-		freespace_str = smprintf(
+        freespace_str = smprintf(
                 "Free space: %s | %s | %s",
-				freespace_root, 
+                freespace_root, 
                 freespace_home,
                 freespace_exfat
-        );
+                );
 
         temperature_str = smprintf("Temps:%s|%s|%s", t0, t1, t2);
 
-		status = smprintf(
+        status = smprintf(
                 "%s || %s || Load:%s || %s",
-				freespace_str, 
+                freespace_str, 
                 temperature_str, 
                 avgs, 
                 time_str
-        );
+                );
 
-		setstatus(status);
+        setstatus(status);
 
-		free(t0);
-		free(t1);
-		free(t2);
-		free(avgs);
-		free(time_str);
-		free(status);
+        free(status);
+        free(avgs);
+        free(time_str);
+        free(t0);
+        free(t1);
+        free(t2);
+        free(freespace_root);
+        free(freespace_home);
+        free(freespace_exfat);
+        free(freespace_str);
+        free(temperature_str);
+
 	}
 
 	XCloseDisplay(dpy);
