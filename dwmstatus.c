@@ -14,8 +14,13 @@
 #include <time.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/statvfs.h>
 
 #include <X11/Xlib.h>
+
+// refresh rate in seconds
+#define REFRESH_RATE 1
+#define GiB (1<<30)
 
 char *tzitaly = "Europe/Rome";
 
@@ -185,13 +190,32 @@ cleanup()
 	}
 }
 
+
+char *get_freespace(char *mntpt){
+    struct statvfs data;
+    double total, used = 0;
+
+    if ( (statvfs(mntpt, &data)) < 0){
+		fprintf(stderr, "can't get info on disk.\n");
+		return("?");
+    }
+    total = (data.f_blocks * data.f_frsize);
+    used = (data.f_blocks - data.f_bfree) * data.f_frsize ;
+
+    float freespace = total - used;
+
+    return(smprintf("%.0f GiB (%.0f%%)",freespace / GiB,  (used/total*100)));
+}
+
 int
 main(void)
 {
 	char *status;
 	char *avgs;
-	char *tmbln;
+	char *time_str;
 	char *t0, *t1, *t2;
+	char *freespace_root, *freespace_home;
+	char *freespace_str, *temperature_str;
 
 	if (!(dpy = XOpenDisplay(NULL))) {
 		fprintf(stderr, "dwmstatus: cannot open display.\n");
@@ -200,22 +224,39 @@ main(void)
 
 	atexit(cleanup);
 
-	for (;;sleep(2)) {
+	for (;;sleep(REFRESH_RATE)) {
 		avgs = loadavg();
-		tmbln = mktimes("KW %W %a %d %b %H:%M %Z %Y", tzitaly);
+		time_str = mktimes("%W %a %d %b %H:%M %Y", tzitaly);
 		t0 = gettemperature("/sys/devices/platform/coretemp.0/hwmon/hwmon1", "temp1_input");
 		t1 = gettemperature("/sys/devices/platform/coretemp.0/hwmon/hwmon1", "temp2_input");
 		t2 = gettemperature("/sys/devices/platform/coretemp.0/hwmon/hwmon1", "temp3_input");
 
-		status = smprintf("Temps:%s|%s|%s   Load:%s  %s",
-				t0, t1, t2, avgs, tmbln);
+        freespace_root = get_freespace("/");
+        freespace_home = get_freespace("/home");
+
+		freespace_str = smprintf(
+                "Free space: / %s | /home %s",
+				freespace_root, 
+                freespace_home
+        );
+
+        temperature_str = smprintf("Temps:%s|%s|%s", t0, t1, t2);
+
+		status = smprintf(
+                "%s || %s || Load:%s || %s",
+				freespace_str, 
+                temperature_str, 
+                avgs, 
+                time_str
+        );
+
 		setstatus(status);
 
 		free(t0);
 		free(t1);
 		free(t2);
 		free(avgs);
-		free(tmbln);
+		free(time_str);
 		free(status);
 	}
 
