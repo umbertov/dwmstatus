@@ -19,7 +19,7 @@
 #include <X11/Xlib.h>
 
 // refresh rate in seconds
-#define REFRESH_RATE 1
+#define REFRESH_RATE 20
 #define GiB (1<<30)
 
 char *tzitaly = "Europe/Rome";
@@ -231,7 +231,7 @@ main(void)
 	for (;;sleep(REFRESH_RATE)) {
 
         avgs = loadavg();
-        time_str = mktimes("%W %a %d %b %H:%M %Y", tzitaly);
+        time_str = mktimes("%a %d %b %H:%M", tzitaly);
         t0 = gettemperature("/sys/devices/platform/coretemp.0/hwmon/hwmon1", "temp1_input");
         t1 = gettemperature("/sys/devices/platform/coretemp.0/hwmon/hwmon1", "temp2_input");
         t2 = gettemperature("/sys/devices/platform/coretemp.0/hwmon/hwmon1", "temp3_input");
