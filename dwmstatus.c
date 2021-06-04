@@ -15,6 +15,10 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/statvfs.h>
+#include <mpd/client.h>
+#include <mpd/song.h>
+#include <mpd/connection.h>
+#include <mpd/status.h>
 
 #include <X11/Xlib.h>
 
@@ -48,6 +52,47 @@ smprintf(char *fmt, ...)
 	va_end(fmtargs);
 
 	return ret;
+}
+
+// from https://github.com/bbenne10/dwmstatus/blob/master/dwmstatus.c
+char *
+getMpd() {
+  struct mpd_song * song = NULL;
+  const char * title = NULL;
+  const char * artist = NULL;
+  char * retstr = NULL;
+
+  struct mpd_connection * conn ;
+  if (!(conn = mpd_connection_new("localhost", 0, 30000)) || mpd_connection_get_error(conn)){
+    fprintf(stderr, "Could not connect to MPD");
+    return smprintf("");
+  }
+
+  mpd_command_list_begin(conn, true);
+  mpd_send_status(conn);
+  mpd_send_current_song(conn);
+  mpd_command_list_end(conn);
+
+  struct mpd_status* theStatus = mpd_recv_status(conn);
+
+  if ((theStatus) && (mpd_status_get_state(theStatus) == MPD_STATE_PLAY)) {
+    mpd_response_next(conn);
+    song = mpd_recv_song(conn);
+    title = smprintf("%s",mpd_song_get_tag(song, MPD_TAG_TITLE, 0));
+    artist = smprintf("%s",mpd_song_get_tag(song, MPD_TAG_ARTIST, 0));
+
+    mpd_song_free(song);
+    retstr = smprintf("<span color='#b8bb26'>&#xf025;</span> %s - %s  ", artist, title);
+    free((char*)title);
+    free((char*)artist);
+  } else {
+    retstr = smprintf("");
+  }
+
+  mpd_status_free(theStatus);
+  mpd_response_finish(conn);
+  mpd_connection_free(conn);
+  return retstr;
 }
 
 void
@@ -219,7 +264,8 @@ main(void)
 	     *time_str,
 	     *t0, *t1, *t2,
 	     *freespace_root, *freespace_home, *freespace_exfat,
-	     *freespace_str, *temperature_str;
+	     *freespace_str, *temperature_str,
+         *mpd_status;
 
 	if (!(dpy = XOpenDisplay(NULL))) {
 		fprintf(stderr, "dwmstatus: cannot open display.\n");
@@ -230,27 +276,36 @@ main(void)
 
 	for (;;sleep(REFRESH_RATE)) {
 
-        avgs = loadavg();
+        /* MPD */
+        mpd_status = getMpd();
+
+        /* TIME */
         time_str = mktimes("%a %d %b %H:%M", tzitaly);
         t0 = gettemperature("/sys/devices/platform/coretemp.0/hwmon/hwmon1", "temp1_input");
         t1 = gettemperature("/sys/devices/platform/coretemp.0/hwmon/hwmon1", "temp2_input");
         t2 = gettemperature("/sys/devices/platform/coretemp.0/hwmon/hwmon1", "temp3_input");
 
-        freespace_root = get_freespace("/", "Root");
-        freespace_home = get_freespace("/home", "Home");
-        freespace_exfat = get_freespace("/mnt/hdd/exfat", "Exfat");
+        /* FREE SPACE */
+        freespace_root = get_freespace("/", "/");
+        freespace_home = get_freespace("/home", "/home");
+        freespace_exfat = get_freespace("/mnt/hdd/exfat", "exfat");
 
         freespace_str = smprintf(
-                "Free space: %s | %s | %s",
+                "%s | %s | %s",
                 freespace_root, 
                 freespace_home,
                 freespace_exfat
                 );
 
+        /* TEMPERATURES */
         temperature_str = smprintf("Temps:%s|%s|%s", t0, t1, t2);
 
+        /* SYSTEM LOAD */
+        avgs = loadavg();
+
         status = smprintf(
-                "%s || %s || Load:%s || %s",
+                "%s|| %s || %s || Load: %s || %s",
+                mpd_status,
                 freespace_str, 
                 temperature_str, 
                 avgs, 
@@ -260,6 +315,7 @@ main(void)
         setstatus(status);
 
         free(status);
+        free(mpd_status);
         free(avgs);
         free(time_str);
         free(t0);
@@ -276,5 +332,5 @@ main(void)
 	XCloseDisplay(dpy);
 
 	return 0;
-}
 
+}
