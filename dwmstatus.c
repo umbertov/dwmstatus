@@ -210,7 +210,7 @@ getbattery(char *base)
 	if (remcap < 0 || descap < 0)
 		return smprintf("invalid");
 
-	return smprintf("%.0f%%%c", ((float)remcap / (float)descap) * 100, status);
+	return smprintf("%.0f%%%c ||", ((float)remcap / (float)descap) * 100, status);
 }
 
 char *
@@ -286,8 +286,8 @@ main(void)
         t2 = gettemperature("/sys/devices/platform/coretemp.0/hwmon/hwmon1", "temp3_input");
 
         /* FREE SPACE */
-        freespace_root = get_freespace("/", "/");
-        freespace_home = get_freespace("/home", "/home");
+        freespace_root = get_freespace("/", "root");
+        freespace_home = get_freespace("/home", "home");
         freespace_exfat = get_freespace("/mnt/hdd/exfat", "exfat");
 
         freespace_str = smprintf(
@@ -304,7 +304,7 @@ main(void)
         avgs = loadavg();
 
         status = smprintf(
-                "%s|| %s || %s || Load: %s || %s",
+                "%s %s || %s || Load: %s || %s",
                 mpd_status,
                 freespace_str, 
                 temperature_str, 
