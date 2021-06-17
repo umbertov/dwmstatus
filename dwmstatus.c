@@ -281,9 +281,6 @@ main(void)
 
         /* TIME */
         time_str = mktimes("%a %d %b %H:%M", tzitaly);
-        t0 = gettemperature("/sys/devices/platform/coretemp.0/hwmon/hwmon1", "temp1_input");
-        t1 = gettemperature("/sys/devices/platform/coretemp.0/hwmon/hwmon1", "temp2_input");
-        t2 = gettemperature("/sys/devices/platform/coretemp.0/hwmon/hwmon1", "temp3_input");
 
         /* FREE SPACE */
         freespace_root = get_freespace("/", "root");
@@ -294,9 +291,21 @@ main(void)
                 freespace_root, 
                 freespace_home
                 );
+        free(freespace_root);
+        free(freespace_home);
+        free(freespace_exfat);
 
         /* TEMPERATURES */
+        t0 = gettemperature("/sys/devices/platform/coretemp.0/hwmon/hwmon1", "temp1_input");
+        t1 = gettemperature("/sys/devices/platform/coretemp.0/hwmon/hwmon1", "temp2_input");
+        t2 = gettemperature("/sys/devices/platform/coretemp.0/hwmon/hwmon1", "temp3_input");
+
         temperature_str = smprintf("Temps:%s|%s|%s", t0, t1, t2);
+
+        free(t0);
+        free(t1);
+        free(t2);
+
 
         /* SYSTEM LOAD */
         avgs = loadavg();
@@ -316,11 +325,6 @@ main(void)
         free(mpd_status);
         free(avgs);
         free(time_str);
-        free(t0);
-        free(t1);
-        free(t2);
-        free(freespace_root);
-        free(freespace_home);
         free(freespace_str);
         free(temperature_str);
 
