@@ -262,7 +262,7 @@ main(void)
 	char *status,
 	     *avgs,
 	     *time_str,
-	     *t0, *t1, *t2,
+	     *t0, 
 	     *freespace_root, *freespace_home,
 	     *freespace_str, *temperature_str,
          *mpd_status;
@@ -293,19 +293,13 @@ main(void)
                 );
         free(freespace_root);
         free(freespace_home);
-        free(freespace_exfat);
 
         /* TEMPERATURES */
-        t0 = gettemperature("/sys/devices/platform/coretemp.0/hwmon/hwmon1", "temp1_input");
-        t1 = gettemperature("/sys/devices/platform/coretemp.0/hwmon/hwmon1", "temp2_input");
-        t2 = gettemperature("/sys/devices/platform/coretemp.0/hwmon/hwmon1", "temp3_input");
+        t0 = gettemperature("/sys/devices/platform/coretemp.0/hwmon/hwmon4", "temp1_input");
 
-        temperature_str = smprintf("Temps:%s|%s|%s", t0, t1, t2);
+        temperature_str = smprintf("Temps:%s", t0);
 
         free(t0);
-        free(t1);
-        free(t2);
-
 
         /* SYSTEM LOAD */
         avgs = loadavg();
