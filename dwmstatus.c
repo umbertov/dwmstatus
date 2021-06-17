@@ -263,7 +263,7 @@ main(void)
 	     *avgs,
 	     *time_str,
 	     *t0, *t1, *t2,
-	     *freespace_root, *freespace_home, *freespace_exfat,
+	     *freespace_root, *freespace_home,
 	     *freespace_str, *temperature_str,
          *mpd_status;
 
@@ -288,13 +288,11 @@ main(void)
         /* FREE SPACE */
         freespace_root = get_freespace("/", "root");
         freespace_home = get_freespace("/home", "home");
-        freespace_exfat = get_freespace("/mnt/hdd/exfat", "exfat");
 
         freespace_str = smprintf(
-                "%s | %s | %s",
+                "%s | %s",
                 freespace_root, 
-                freespace_home,
-                freespace_exfat
+                freespace_home
                 );
 
         /* TEMPERATURES */
@@ -323,7 +321,6 @@ main(void)
         free(t2);
         free(freespace_root);
         free(freespace_home);
-        free(freespace_exfat);
         free(freespace_str);
         free(temperature_str);
 
