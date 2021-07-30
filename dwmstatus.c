@@ -153,17 +153,45 @@ readfile(char *base, char *file)
 	fd = fopen(path, "r");
 	free(path);
 	if (fd == NULL)
-		return NULL;
+		return smprintf("can't open %s/%s", base,file);
 
 	if (fgets(line, sizeof(line)-1, fd) == NULL)
-		return NULL;
+		return smprintf("empty file %s/%s", base,file);
 	fclose(fd);
 
 	return smprintf("%s", line);
 }
 
 char *
-getbattery(char *base)
+readcommand(char *command)
+{
+	char line[513];
+	FILE *fd;
+
+	memset(line, 0, sizeof(line));
+
+	fd = popen(command, "r");
+	if (fd == NULL)
+		return smprintf("can't run %s", command);
+
+	if (fgets(line, sizeof(line)-1, fd) == NULL)
+		return smprintf("can't run %s", command);
+
+	fclose(fd);
+
+	return smprintf("%s", line);
+}
+
+char *get_battery() {
+    return readcommand("~/.local/bin/show_battery_pct");
+}
+
+char *get_freeram() {
+    return readcommand("sh ~/scripts/free_ram.sh");
+}
+
+char *
+_old_getbattery(char *base)
 {
 	char *co, status;
 	int descap, remcap;
@@ -265,7 +293,9 @@ main(void)
 	     *t0, *t1, *t2,
 	     *freespace_root, *freespace_home, *freespace_exfat,
 	     *freespace_str, *temperature_str,
-         *mpd_status;
+         *mpd_status,
+         *ram_str,
+         *battery_pct;
 
 	if (!(dpy = XOpenDisplay(NULL))) {
 		fprintf(stderr, "dwmstatus: cannot open display.\n");
@@ -312,12 +342,20 @@ main(void)
         /* SYSTEM LOAD */
         avgs = loadavg();
 
+        /* BATTERY */
+        battery_pct = get_battery();
+
+        /* RAM */
+        ram_str = get_freeram();
+
         status = smprintf(
-                "%s %s || %s || Load: %s || %s",
+                "Battery: %s || %s %s || %s || Load: %s || RAM: %s || %s",
+                battery_pct,
                 mpd_status,
                 freespace_str, 
                 temperature_str, 
                 avgs, 
+                ram_str, 
                 time_str
                 );
 
@@ -329,6 +367,7 @@ main(void)
         free(time_str);
         free(freespace_str);
         free(temperature_str);
+        free(ram_str);
 
 	}
 
