@@ -26,9 +26,27 @@
 #define REFRESH_RATE 20
 #define GiB (1<<30)
 
+#define MAXLEN 1024
+
 char *tzitaly = "Europe/Rome";
 
 static Display *dpy = NULL;
+
+/* BUFFERS FOR STATUS STRINGS */ 
+char status[MAXLEN*16],
+     load_str[MAXLEN],
+     time_str[MAXLEN],
+     t0[MAXLEN],
+     t1[MAXLEN],
+     t2[MAXLEN],
+     freespace_root[MAXLEN],
+     freespace_home[MAXLEN],
+     freespace_exfat[MAXLEN],
+     freespace_str[MAXLEN*4],
+     temperature_str[MAXLEN*4],
+     mpd_status[MAXLEN*3],
+     ram_str[MAXLEN],
+     battery_pct[MAXLEN];
 
 char *
 smprintf(char *fmt, ...)
@@ -55,17 +73,15 @@ smprintf(char *fmt, ...)
 }
 
 // from https://github.com/bbenne10/dwmstatus/blob/master/dwmstatus.c
-char *
+void
 getMpd() {
   struct mpd_song * song = NULL;
-  const char * title = NULL;
-  const char * artist = NULL;
-  char * retstr = NULL;
+  char title[MAXLEN], artist[MAXLEN];
 
   struct mpd_connection * conn ;
   if (!(conn = mpd_connection_new("localhost", 0, 30000)) || mpd_connection_get_error(conn)){
-    fprintf(stderr, "Could not connect to MPD");
-    return smprintf("");
+    fprintf(stderr, "Could not connect to MPD\n");
+    snprintf(mpd_status, MAXLEN, "");
   }
 
   mpd_command_list_begin(conn, true);
@@ -75,24 +91,22 @@ getMpd() {
 
   struct mpd_status* theStatus = mpd_recv_status(conn);
 
+
   if ((theStatus) && (mpd_status_get_state(theStatus) == MPD_STATE_PLAY)) {
     mpd_response_next(conn);
     song = mpd_recv_song(conn);
-    title = smprintf("%s",mpd_song_get_tag(song, MPD_TAG_TITLE, 0));
-    artist = smprintf("%s",mpd_song_get_tag(song, MPD_TAG_ARTIST, 0));
+    snprintf(title, MAXLEN, "%s",mpd_song_get_tag(song, MPD_TAG_TITLE, 0));
+    snprintf(artist, MAXLEN, "%s",mpd_song_get_tag(song, MPD_TAG_ARTIST, 0));
 
     mpd_song_free(song);
-    retstr = smprintf("<span color='#b8bb26'>&#xf025;</span> %s - %s  ", artist, title);
-    free((char*)title);
-    free((char*)artist);
+    snprintf(mpd_status, sizeof(mpd_status)-1, "<span color='#b8bb26'>&#xf025;</span> %s - %s  ", artist, title);
   } else {
-    retstr = smprintf("");
+    snprintf(mpd_status, MAXLEN, "");
   }
 
   mpd_status_free(theStatus);
   mpd_response_finish(conn);
   mpd_connection_free(conn);
-  return retstr;
 }
 
 void
@@ -101,7 +115,7 @@ settz(char *tzname)
 	setenv("TZ", tzname, 1);
 }
 
-char *
+void
 mktimes(char *fmt, char *tzname)
 {
 	char buf[129];
@@ -112,14 +126,14 @@ mktimes(char *fmt, char *tzname)
 	tim = time(NULL);
 	timtm = localtime(&tim);
 	if (timtm == NULL)
-		return smprintf("");
+		snprintf(time_str, MAXLEN, "");
 
 	if (!strftime(buf, sizeof(buf)-1, fmt, timtm)) {
 		fprintf(stderr, "strftime == 0\n");
-		return smprintf("");
+		snprintf(time_str, MAXLEN, "");
 	}
 
-	return smprintf("%s", buf);
+	snprintf(time_str, MAXLEN, "%s", buf);
 }
 
 void
@@ -129,20 +143,21 @@ setstatus(char *str)
 	XSync(dpy, False);
 }
 
-char *
+void
 loadavg(void)
 {
 	double avgs[3];
 
-	if (getloadavg(avgs, 3) < 0)
-		return smprintf("");
+	if (getloadavg(avgs, 3) < 0){
+		snprintf(load_str, MAXLEN, "");
+    }
 
 	// return smprintf("%.2f %.2f %.2f", avgs[0], avgs[1], avgs[2]);
-	return smprintf("%.2f", avgs[0]);
+	snprintf(load_str, MAXLEN, "%.2f", avgs[0]);
 }
 
-char *
-readfile(char *base, char *file)
+int
+readfile(char *base, char *file, char retbuf[])
 {
 	char *path, line[513];
 	FILE *fd;
@@ -150,20 +165,27 @@ readfile(char *base, char *file)
 	memset(line, 0, sizeof(line));
 
 	path = smprintf("%s/%s", base, file);
+
 	fd = fopen(path, "r");
 	free(path);
-	if (fd == NULL)
-		return smprintf("can't open %s/%s", base,file);
 
-	if (fgets(line, sizeof(line)-1, fd) == NULL)
-		return smprintf("empty file %s/%s", base,file);
+	if (fd == NULL){
+		snprintf(retbuf, MAXLEN, "can't open %s/%s", base,file);
+        return -1;
+    }
+
+	if (fgets(line, sizeof(line)-1, fd) == NULL){ 
+		snprintf(retbuf, MAXLEN, "empty file %s/%s", base,file);
+        return -1;
+    }
 	fclose(fd);
 
-	return smprintf("%s", line);
+	snprintf(retbuf, MAXLEN, "%s", line);
+    return 0;
 }
 
-char *
-readcommand(char *command)
+int
+readcommand(char *command, char retbuf[])
 {
 	char line[513];
 	FILE *fd;
@@ -171,87 +193,45 @@ readcommand(char *command)
 	memset(line, 0, sizeof(line));
 
 	fd = popen(command, "r");
-	if (fd == NULL)
-		return smprintf("can't run %s", command);
+	if (fd == NULL) {
+		snprintf(retbuf, MAXLEN, "can't run %s", command);
+        return -1;
+    }
 
-	if (fgets(line, sizeof(line)-1, fd) == NULL)
-		return smprintf("can't run %s", command);
+	if (fgets(line, sizeof(line)-1, fd) == NULL) { 
+		snprintf(retbuf, MAXLEN, "can't run %s", command);
+        return -1;
+    }
 
 	fclose(fd);
 
-	return smprintf("%s", line);
+	snprintf(retbuf, MAXLEN, "%s", line);
+    return 0;
 }
 
-char *get_battery() {
-    return readcommand("~/.local/bin/show_battery_pct");
+void
+get_battery() {
+    readcommand("~/.local/bin/show_battery_pct", battery_pct);
 }
 
-char *get_freeram() {
-    return readcommand("sh ~/scripts/free_ram.sh");
+void
+get_freeram() {
+    readcommand("sh ~/scripts/free_ram.sh", ram_str);
 }
 
-char *
-_old_getbattery(char *base)
+
+void
+gettemperature(char *base, char *sensor, char retbuf[])
 {
-	char *co, status;
-	int descap, remcap;
+	char co[MAXLEN];
 
-	descap = -1;
-	remcap = -1;
-
-	co = readfile(base, "present");
-	if (co == NULL)
-		return smprintf("");
-	if (co[0] != '1') {
-		free(co);
-		return smprintf("not present");
-	}
-	free(co);
-
-	co = readfile(base, "charge_full_design");
-	if (co == NULL) {
-		co = readfile(base, "energy_full_design");
-		if (co == NULL)
-			return smprintf("");
-	}
-	sscanf(co, "%d", &descap);
-	free(co);
-
-	co = readfile(base, "charge_now");
-	if (co == NULL) {
-		co = readfile(base, "energy_now");
-		if (co == NULL)
-			return smprintf("");
-	}
-	sscanf(co, "%d", &remcap);
-	free(co);
-
-	co = readfile(base, "status");
-	if (!strncmp(co, "Discharging", 11)) {
-		status = '-';
-	} else if(!strncmp(co, "Charging", 8)) {
-		status = '+';
-	} else {
-		status = '?';
-	}
-
-	if (remcap < 0 || descap < 0)
-		return smprintf("invalid");
-
-	return smprintf("%.0f%%%c ||", ((float)remcap / (float)descap) * 100, status);
-}
-
-char *
-gettemperature(char *base, char *sensor)
-{
-	char *co, *ret;
-
-	co = readfile(base, sensor);
-	if (co == NULL)
-		return smprintf("");
-	ret = smprintf("%02.0f°C", atof(co) / 1000);
-	free(co);
-	return ret;
+	int err = readfile(base, sensor, co);
+	if (err) {
+        char errmsg[] =  "gettemperature: readfile() failed\n";
+		snprintf(retbuf, MAXLEN,errmsg);
+		fputs(errmsg, stderr);
+    }
+	snprintf(retbuf, MAXLEN, "%02.0f°C", atof(co) / 1000);
 }
 
 
@@ -263,8 +243,8 @@ cleanup()
 	}
 }
 
-
-char *get_freespace(char *mntpt, char *briefname){
+int
+get_freespace(char *mntpt, char *briefname, char retbuf[]){
     struct statvfs data;
     double total, used = 0;
 
@@ -273,29 +253,21 @@ char *get_freespace(char *mntpt, char *briefname){
     }
 
     if ( (statvfs(mntpt, &data)) < 0){
-		fprintf(stderr, "can't get info on disk.\n");
-		return("?");
+		fprintf(stderr, "can't get info on disk %s.\n", mntpt);
+        return -1;
     }
     total = (data.f_blocks * data.f_frsize);
     used = (data.f_blocks - data.f_bfree) * data.f_frsize ;
 
     float freespace = total - used;
 
-    return(smprintf("%s %.0f GiB (%.0f%%)", briefname, freespace / GiB,  (used/total*100)));
+    snprintf(retbuf, MAXLEN, "%s %.0f GiB (%.0f%%)", briefname, freespace / GiB,  (used/total*100));
+    return 0;
 }
 
 int
 main(void)
 {
-	char *status,
-	     *avgs,
-	     *time_str,
-	     *t0, *t1, *t2,
-	     *freespace_root, *freespace_home, *freespace_exfat,
-	     *freespace_str, *temperature_str,
-         *mpd_status,
-         *ram_str,
-         *battery_pct;
 
 	if (!(dpy = XOpenDisplay(NULL))) {
 		fprintf(stderr, "dwmstatus: cannot open display.\n");
@@ -307,67 +279,53 @@ main(void)
 	for (;;sleep(REFRESH_RATE)) {
 
         /* MPD */
-        mpd_status = getMpd();
+        getMpd();
 
         /* TIME */
-        time_str = mktimes("%a %d %b %H:%M", tzitaly);
+        mktimes("%a %d %b %H:%M", tzitaly);
 
         /* FREE SPACE */
-        freespace_root = get_freespace("/", "root");
-        freespace_home = get_freespace("/home", "home");
-        freespace_exfat = get_freespace("/mnt/hdd/exfat", "exfat");
+        get_freespace("/", "root", freespace_root);
+        get_freespace("/home", "home", freespace_home);
+        get_freespace("/mnt/hdd/exfat", "exfat", freespace_exfat);
 
-        freespace_str = smprintf(
+        snprintf(
+                freespace_str,
+                sizeof(freespace_str)-1,
                 "%s | %s | %s",
                 freespace_root, 
                 freespace_home,
                 freespace_exfat
-                );
-        free(freespace_root);
-        free(freespace_home);
-        free(freespace_exfat);
+        );
 
         /* TEMPERATURES */
-        t0 = gettemperature("/sys/devices/platform/coretemp.0/hwmon/hwmon1", "temp1_input");
-        t1 = gettemperature("/sys/devices/platform/coretemp.0/hwmon/hwmon1", "temp2_input");
-        t2 = gettemperature("/sys/devices/platform/coretemp.0/hwmon/hwmon1", "temp3_input");
+        gettemperature("/sys/devices/platform/coretemp.0/hwmon/hwmon1", "temp1_input", t0);
+        gettemperature("/sys/devices/platform/coretemp.0/hwmon/hwmon1", "temp2_input", t1);
+        gettemperature("/sys/devices/platform/coretemp.0/hwmon/hwmon1", "temp3_input", t2);
 
-        temperature_str = smprintf("Temps:%s|%s|%s", t0, t1, t2);
-
-        free(t0);
-        free(t1);
-        free(t2);
-
+        snprintf(temperature_str, sizeof(temperature_str), "Temps:%s|%s|%s", t0, t1, t2);
 
         /* SYSTEM LOAD */
-        avgs = loadavg();
+        loadavg();
 
         /* BATTERY */
-        battery_pct = get_battery();
+        get_battery();
 
         /* RAM */
-        ram_str = get_freeram();
+        get_freeram();
 
-        status = smprintf(
+        snprintf(status, sizeof(status)-1, 
                 "Battery: %s || %s %s || %s || Load: %s || RAM: %s || %s",
                 battery_pct,
                 mpd_status,
                 freespace_str, 
                 temperature_str, 
-                avgs, 
+                load_str, 
                 ram_str, 
                 time_str
                 );
 
         setstatus(status);
-
-        free(status);
-        free(mpd_status);
-        free(avgs);
-        free(time_str);
-        free(freespace_str);
-        free(temperature_str);
-        free(ram_str);
 
 	}
 
